@@ -104,7 +104,7 @@ def day(stamp: pd.Timestamp) -> str:
 
 
 def main() -> None:
-    st.set_page_config(page_title="Portfolio Risk Lab", page_icon="📉", layout="wide")
+    st.set_page_config(page_title="Portfolio Risk Lab", page_icon="📉", layout="wide", initial_sidebar_state="expanded")
     pack = get_pack()
     labels = ticker_labels(pack)
     options = sorted(labels)
