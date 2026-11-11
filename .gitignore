@@ -1,0 +1,11 @@
+# environments and caches
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.streamlit/secrets.toml
+
+# research outputs and raw downloads stay local; the pack itself is committed
+output/
+data/raw/
+nohup.out

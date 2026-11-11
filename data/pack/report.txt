@@ -1,0 +1,41 @@
+Market pack built 2026-11-11T22:56:45+00:00
+Sessions 2018-01-03 to 2026-11-10 (2226 days)
+
+Listing rules (NASDAQ Trader symbol files + NASDAQ screener):
+  listed securities                                          13282
+  removed: exchange-traded fund                               5790
+  removed: symbol suffix or characters                        1162
+  removed: market cap below the floor                         1068
+  removed: not common stock (warrant, unit, preferred, note, fund, SPAC)    875
+  removed: delinquent or deficient                             347
+  removed: blank-cheque company or trust                        63
+  removed: closed-end fund                                      56
+  removed: test issue                                           35
+  removed: no market value in the screener                      31
+  removed: exchange not NYSE, NYSE American or NASDAQ           12
+  candidates                                                  3843
+  no prices from Yahoo                                           6
+
+History rules (Yahoo Finance daily prices):
+  removed: too thinly traded                                   375
+  removed: a single-day move beyond the limit                   59
+  removed: price below the floor                                35
+  in the pack                                                 3368
+    eligible for the risk model                               3040
+    young (under three years of history)                       328
+
+By exchange: NYSE 1668, NASDAQ 1636, NYSE American 63, Cboe BZX 1
+By sector:
+  Consumer Discretionary          659
+  Finance                         577
+  Health Care                     534
+  Technology                      457
+  Industrials                     432
+  Real Estate                     157
+  Energy                          130
+  Utilities                       113
+  Basic Materials                 109
+  Consumer Staples                 86
+  Telecommunications               58
+  Unknown                          29
+  Miscellaneous                    27

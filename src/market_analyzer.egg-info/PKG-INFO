@@ -1,0 +1,88 @@
+Metadata-Version: 2.4
+Name: market-analyzer
+Version: 0.1.0
+Summary: Download prices and daily returns for any user-defined set of Yahoo Finance tickers.
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: pandas>=2.2
+Requires-Dist: yfinance>=0.2.40
+Requires-Dist: PyYAML>=6.0
+Requires-Dist: lxml>=5.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+
+# Market analyzer
+
+Pull adjusted prices and a daily return matrix for **any companies you choose**. A basket is a list of [Yahoo Finance](https://finance.yahoo.com) symbols. It can be one stock, a personal watchlist, or a whole exchange list you point at yourself. Nothing is hardcoded to the S&P 500.
+
+The guide for finding a symbol, exchange suffixes, and the return matrix is [docs/getting-stock-data.md](docs/getting-stock-data.md).
+
+## Install
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+## Pull a basket
+
+Pass symbols directly:
+
+```bash
+market-analyzer pull \
+  --tickers AAPL RELIANCE.NS HSBA.L \
+  --start 2020-01-01 \
+  --end 2025-01-01 \
+  --name my-basket
+```
+
+Or edit a copy of `config/universe.example.yaml` and run:
+
+```bash
+market-analyzer pull --universe config/universe.example.yaml
+```
+
+Leave `end` unset when you want prices through the latest session. Yahoo Finance treats an end date as exclusive, so `2025-01-01` stops at 2024-12-31.
+
+Files land in `data/<name>/`:
+
+| File | What it is |
+| --- | --- |
+| `prices.csv` | Adjusted close, one column per company |
+| `returns.csv` | Daily simple returns. Rows are dates (T), columns are companies (N) |
+| `summary.csv` | Total return, annualized return, volatility, max drawdown |
+| `correlation.csv` | Correlation of the return columns |
+
+From Python:
+
+```python
+from market_analyzer import build_market_data
+
+data = build_market_data(
+    tickers=["AAPL", "RELIANCE.NS"],
+    start="2020-01-01",
+    end="2025-01-01",
+)
+data.returns  # shape (T, N)
+```
+
+## Layout
+
+```
+config/universe.example.yaml      tickers you type
+config/html_table.example.yaml    optional symbols from any HTML table
+docs/getting-stock-data.md        how to get data for any company
+src/market_analyzer/              download, returns, and summary
+examples/pull_custom_basket.py    short script for a three-name basket
+```
+
+`data/` is created when you pull and is gitignored.
+
+## Tests
+
+```bash
+pytest
+```
+
+The tests use synthetic prices. A real pull needs a network connection to Yahoo Finance.

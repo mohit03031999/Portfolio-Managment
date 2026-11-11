@@ -1,0 +1,2 @@
+[console_scripts]
+market-analyzer = market_analyzer.cli:main

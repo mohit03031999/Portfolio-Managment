@@ -1,0 +1,17 @@
+# Copy this file and edit the ticker list.
+# Symbols are Yahoo Finance symbols, not a fixed index.
+name: global-sample
+start: "2020-01-01"
+# Leave end unset to pull through the latest completed session.
+# Set end to freeze a study window. Yahoo Finance treats end as exclusive,
+# so end: "2025-01-01" includes data through 2024-12-31.
+# end: "2025-01-01"
+
+tickers:
+  - "AAPL"          # Apple, United States
+  - "BRK-B"         # Berkshire Hathaway Class B. Yahoo uses a hyphen, not BRK.B
+  - "RELIANCE.NS"   # Reliance Industries, National Stock Exchange of India
+  - "HSBA.L"        # HSBC, London
+  - "7203.T"        # Toyota, Tokyo
+  - "RY.TO"         # Royal Bank of Canada, Toronto
+  - "SPY"           # an ETF works the same way as a stock

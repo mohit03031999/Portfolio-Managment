@@ -1,0 +1,16 @@
+# Optional: load symbols from any HTML table instead of typing them.
+# This is the same idea as reading the S&P 500 Wikipedia page, pointed at
+# whatever list you choose. Check the symbols against Yahoo Finance before
+# trusting a long history — index pages often omit the exchange suffix.
+name: from-html-table
+start: "2020-01-01"
+
+source:
+  type: html_table
+  url: https://en.wikipedia.org/wiki/List_of_S%26P_500_companies
+  table_index: 0
+  column: Symbol
+  # Wikipedia writes US class shares as BRK.B. Yahoo Finance uses BRK-B.
+  # Keep this false when the table already contains Yahoo symbols
+  # such as RELIANCE.NS (the dot there is the exchange suffix).
+  wikipedia_class_shares: true

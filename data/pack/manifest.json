@@ -1,0 +1,47 @@
+{
+  "pack_version": 1,
+  "built_at": "2026-11-11T22:56:45+00:00",
+  "start": "2018-01-01",
+  "first_date": "2018-01-03",
+  "last_date": "2026-11-10",
+  "n_sessions": 2226,
+  "n_tickers": 3368,
+  "n_eligible": 3040,
+  "n_young": 328,
+  "min_market_cap": 100000000.0,
+  "rules": {
+    "min_history_years": 3.0,
+    "max_missing_fraction": 0.05,
+    "min_median_dollar_volume": 1000000.0,
+    "min_last_price": 1.0,
+    "max_abs_return": 2.5,
+    "recent_sessions": 504,
+    "liquidity_sessions": 126,
+    "stale_sessions": 10
+  },
+  "universe_counts": {
+    "exchange-traded fund": 5790,
+    "symbol suffix or characters": 1162,
+    "market cap below the floor": 1068,
+    "not common stock (warrant, unit, preferred, note, fund, SPAC)": 875,
+    "delinquent or deficient": 347,
+    "blank-cheque company or trust": 63,
+    "closed-end fund": 56,
+    "test issue": 35,
+    "no market value in the screener": 31,
+    "exchange not NYSE, NYSE American or NASDAQ": 12,
+    "listed": 13282,
+    "candidates": 3843
+  },
+  "history_counts": {
+    "too thinly traded": 375,
+    "a single-day move beyond the limit": 59,
+    "price below the floor": 35
+  },
+  "download_failed": 6,
+  "sources": {
+    "symbol_directory": "https://www.nasdaqtrader.com/dynamic/SymDir/{name}",
+    "screener": "https://api.nasdaq.com/api/screener/stocks",
+    "prices": "Yahoo Finance via yfinance"
+  }
+}
