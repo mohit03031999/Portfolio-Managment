@@ -7,6 +7,9 @@ on:
   schedule:
     - cron: "30 2 * * 2-6"   # 02:30 UTC Tuesday to Saturday: after Monday to Friday sessions
   workflow_dispatch:
+  push:                      # a change to this file rebuilds the pack at once, which bootstraps the release
+    branches: [main]
+    paths: [".github/workflows/refresh-pack.yml"]
 
 permissions:
   contents: write

@@ -95,7 +95,7 @@ uv pip install --python .venv/bin/python -e ".[app]"
 
 1. Push the repository to GitHub (public). `data/pack` is committed; `data/raw`, `output` and the venv are ignored.
 2. On share.streamlit.io, sign in with GitHub, choose the repository, branch `main`, main file `app/streamlit_app.py`, Python 3.12. `requirements.txt` already lists Streamlit, pyarrow and requests next to the package's own needs.
-3. Optional, for nightly data: run the "Refresh market pack" workflow once by hand (Actions tab) so the `pack-latest` release exists, then add the secret `MARKET_PACK_URL = "https://github.com/<user>/<repo>/releases/download/pack-latest"` in the app's settings on Community Cloud. The page then fetches the fresh pack at most every six hours and falls back to the committed one when the fetch fails.
+3. Nightly data needs no further setup. The workflow runs after each US session (02:30 UTC, Tuesday to Saturday) and whenever its own file changes, and publishes the pack as the `pack-latest` release of the repository. The page looks for that release by default (`DEFAULT_PACK_URL` in the app), fetches it at most every six hours, and falls back to the committed pack when the fetch fails. `MARKET_PACK_URL`, as an environment variable or a Streamlit secret, points the page elsewhere; the value `none` keeps it on the committed pack.
 
 **A caveat on the refresh.** Yahoo Finance sometimes rate-limits requests from cloud runners. The workflow retries each batch and the page keeps working from the committed pack regardless, but a failed nightly run only shows in the Actions tab. If that proves frequent, the fallback is to run the build script on a machine of ours and upload with `gh release upload pack-latest data/pack/* --clobber`.
 

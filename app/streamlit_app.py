@@ -41,6 +41,9 @@ from market_analyzer.market_pack import MarketPack, fetch_pack, load_pack  # noq
 PACK_DIR = Path(os.environ.get("MARKET_PACK_DIR", str(ROOT / "data" / "pack")))
 PACK_CACHE = Path(os.environ.get("MARKET_PACK_CACHE", str(Path.home() / ".cache" / "market_pack")))
 PACK_REFRESH_SECONDS = 6 * 3600
+# Where the nightly workflow publishes the pack. Override with MARKET_PACK_URL
+# (environment or Streamlit secret); set it to "none" to use the committed pack only.
+DEFAULT_PACK_URL = "https://github.com/mohit03031999/Portfolio-Managment/releases/download/pack-latest"
 MAX_BASKET = 60
 WINDOWS = {"4 years": 1000, "2 years": 500}
 BACKTEST_WINDOW = 500
@@ -60,14 +63,15 @@ COLOURS = {OPTIMISED_LABEL: "#2563EB", EQUAL_LABEL: "#9CA3AF"}
 
 
 def pack_url() -> str:
-    """Where a fresher pack may be published: the environment first, then Streamlit secrets."""
+    """Where a fresher pack may be published: the environment, then Streamlit secrets, then the default."""
     url = os.environ.get("MARKET_PACK_URL", "")
     if not url:
         try:
             url = str(st.secrets.get("MARKET_PACK_URL", ""))
         except Exception:  # no secrets file is the normal local case
             url = ""
-    return url.strip()
+    url = url.strip() or DEFAULT_PACK_URL
+    return "" if url.lower() == "none" else url
 
 
 @st.cache_resource(ttl=PACK_REFRESH_SECONDS, show_spinner="Loading the market data…")
