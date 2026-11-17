@@ -1,4 +1,4 @@
-"""Portfolio Risk Lab: pick stocks, see the risk, see the mix, see what would have happened.
+"""Portfolio Risk Lab: pick stocks, see the risk, see the mix, set how much goes in, see what would have happened.
 
 Run locally with
 
@@ -35,6 +35,8 @@ from market_analyzer.basket import (  # noqa: E402
     BasketBacktest,
     analyse_basket,
     backtest_basket,
+    dial_basket,
+    dial_history,
 )
 from market_analyzer.market_pack import MarketPack, fetch_pack, load_pack  # noqa: E402
 
@@ -57,6 +59,12 @@ PRESETS = {
 OPTIMISED_LABEL = "Optimised mix"
 EQUAL_LABEL = "Equal split"
 COLOURS = {OPTIMISED_LABEL: "#2563EB", EQUAL_LABEL: "#9CA3AF"}
+DIALLED_LABEL = "Mix plus cash"
+DIAL_COLOUR = "#C2410C"
+DIAL_COLOURS = {OPTIMISED_LABEL: COLOURS[OPTIMISED_LABEL], DIALLED_LABEL: DIAL_COLOUR}
+MUTED = "#6B7280"
+TARGET_RANGE = (2, 30)
+TARGET_DEFAULT = 10
 
 
 # --------------------------------------------------------------------------- data
@@ -123,8 +131,9 @@ def main() -> None:
     st.title("Portfolio Risk Lab")
     st.write(
         "Pick some stocks. The page shows how much an equal split of them would swing, how much a "
-        "minimum-variance mix is forecast to swing, how that mix spreads the money, and what would have "
-        "happened over the last three years. It makes no forecast of returns."
+        "minimum-variance mix is forecast to swing, how that mix spreads the money, how much of your money "
+        "to put in it for the swings you accept, and what would have happened over the last three years. "
+        "It makes no forecast of returns."
     )
 
     st.subheader("1. Pick your stocks")
@@ -157,7 +166,8 @@ def main() -> None:
 
     section_risk(analysis)
     section_mix(analysis)
-    section_history(analysis.tickers, rule, cleaning)
+    target = section_dial(pack, analysis)
+    section_history(pack, analysis.tickers, rule, cleaning, target)
     section_limits()
 
 
@@ -208,7 +218,8 @@ def sidebar(pack: MarketPack) -> tuple[str, str, int]:
             st.write(
                 "A minimum-variance optimiser built on random-matrix cleaning of the correlation matrix, "
                 "tested on the S&P 500 from 2018 to 2026. It answers one question: how to spread money across "
-                "the stocks you chose so the portfolio swings as little as possible. It does not predict returns, "
+                "the stocks you chose so the portfolio swings as little as possible. A risk dial then sets how "
+                "much of your money goes into that mix and how much stays in cash. It does not predict returns, "
                 "and it cannot see crashes coming."
             )
     return rule, cleaning, window
@@ -240,7 +251,7 @@ def section_risk(analysis: BasketAnalysis) -> None:
         f"stocks actually swung **{pct(analysis.equal_realised_vol)}** a year. The risk model, built on the same "
         f"{analysis.window} sessions, forecasts **{pct(analysis.equal_vol)}** for the equal split and "
         f"**{pct(analysis.optimised_vol)}** for its own mix. In our S&P 500 tests with this rule, real swings "
-        f"came in at **{low:.0%} to {high:.0%}** of the forecast; section 4 measures it for this basket."
+        f"came in at **{low:.0%} to {high:.0%}** of the forecast; section 5 measures it for this basket."
     )
     if analysis.excluded:
         st.caption(
@@ -306,8 +317,72 @@ def section_mix(analysis: BasketAnalysis) -> None:
     )
 
 
-def section_history(tickers: list[str], rule: str, cleaning: str) -> None:
-    st.subheader("4. What would have happened")
+def section_dial(pack: MarketPack, analysis: BasketAnalysis) -> float:
+    """The customer's risk dial for today. Returns the chosen target as a fraction."""
+    st.subheader("4. How much of your money goes in")
+    st.write(
+        "The mix above is the calmest way to hold these stocks, and it can still swing more than you are "
+        "comfortable with. Say how much swing you accept. The page puts part of your money in the mix and "
+        "keeps the rest in cash, which does not swing."
+    )
+    percent = st.slider(
+        "Yearly swings you accept",
+        min_value=TARGET_RANGE[0],
+        max_value=TARGET_RANGE[1],
+        value=TARGET_DEFAULT,
+        step=1,
+        format="%d%%",
+        key="target",
+        help="Volatility: how far the value typically moves up or down over a year. "
+        "A lower number means a calmer ride and more of the money in cash.",
+    )
+    target = percent / 100.0
+    dial = dial_basket(pack, analysis, target)
+
+    left, middle, right = st.columns(3)
+    left.metric("In the stock mix", pct(dial.exposure, 0))
+    middle.metric("In cash", pct(dial.cash, 0))
+    right.metric(
+        "Swings to expect per year",
+        pct(dial.expected_vol),
+        help="The share in the mix times the swings expected from the mix.",
+    )
+
+    monthly = target / 12**0.5
+    if dial.capped:
+        st.write(
+            f"The mix is expected to swing **{pct(dial.forecast_vol)}** a year, already less than the "
+            f"{pct(target, 0)} you accept. The page never borrows, so all of your money goes in the mix and "
+            f"the swings to expect stay at {pct(dial.forecast_vol)}."
+        )
+    else:
+        st.write(
+            f"The risk model expects the mix to swing **{pct(dial.model_vol)}** a year. Over recent months, "
+            f"with the latest days counting most, it has been swinging at a yearly rate of "
+            f"**{pct(dial.recent_vol)}**. The dial trusts the higher number and divides: {pct(target, 0)} ÷ "
+            f"{pct(dial.forecast_vol)} = **{pct(dial.exposure, 0)}** in the mix. Swings of {pct(target, 0)} a "
+            f"year are roughly {pct(monthly)} up or down in a typical month."
+        )
+    whole, wildest = RULES[analysis.rule].dial
+    st.caption(
+        f"The share above is for today. In our S&P 500 test from 2018 to 2026 this dial, reset every week with "
+        f"this portfolio rule, delivered {whole:.2f} times the swings asked for over the whole period and "
+        f"{wildest:.2f} times in 2020, its wildest year. Section 5 replays it for this basket."
+    )
+
+    held = analysis.table.loc[analysis.table["weight"].abs() > 1e-6]
+    rows = [{"Holding": "Cash", "Name": "Kept out of the market", "Share of your money": pct(dial.cash)}]
+    rows += [
+        {"Holding": ticker, "Name": name, "Share of your money": pct(weight * dial.exposure)}
+        for ticker, name, weight in zip(held["ticker"], held["name"], held["weight"])
+    ]
+    with st.expander("Your portfolio line by line", expanded=True):
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", height=min(35 * (len(rows) + 1) + 3, 423))
+    return target
+
+
+def section_history(pack: MarketPack, tickers: list[str], rule: str, cleaning: str, target: float) -> None:
+    st.subheader("5. What would have happened")
     st.write(
         f"Every 21 sessions over the last {BACKTEST_YEARS:.0f} years the mix is re-optimised on the previous "
         f"{BACKTEST_WINDOW} sessions and held. The forecast made on each decision day is then compared with "
@@ -384,10 +459,106 @@ def section_history(tickers: list[str], rule: str, cleaning: str) -> None:
         "trading costs are not included."
     )
     st.write(" ".join(lines))
+    dial_replay(pack, history, rule, target)
+
+
+def dial_replay(pack: MarketPack, history: BasketBacktest, rule: str, target: float) -> None:
+    """The risk dial over the same three years: swings asked for against swings delivered."""
+    st.markdown("#### With your risk dial")
+    replay = dial_history(pack, history, target)
+    summary = replay.summary
+    first, second, third, fourth = st.columns(4)
+    first.metric("Swings you asked for", pct(target, 0))
+    second.metric(
+        "Swings you would have got",
+        pct(summary["delivered_vol"]),
+        delta=f"{summary['delivered_over_target']:.2f} times what you asked for",
+        delta_color="off",
+        delta_arrow="off",
+    )
+    third.metric("Average share in the mix", pct(summary["mean_exposure"], 0))
+    fourth.metric("Lowest share in the mix", pct(summary["min_exposure"], 0), help=f"Reached on {day(replay.low_date)}.")
+
+    st.caption(
+        "Top: the swings felt over each trailing three months, as a yearly rate, for the mix alone and for the "
+        "mix plus cash. Bottom: the share of the money the dial kept in the mix."
+    )
+    span = alt.Scale(domain=[history.start.isoformat(), history.end.isoformat()])
+    months = alt.Axis(format="%b %Y", tickCount=8, labelFlush=True)
+    rolling = replay.rolling.rename(columns={"mix": OPTIMISED_LABEL, "dialled": DIALLED_LABEL})
+    long_form = rolling.reset_index().melt(id_vars=rolling.index.name or "Date", var_name="series", value_name="value")
+    long_form.columns = ["date", "series", "value"]
+    lines = (
+        alt.Chart(long_form)
+        .mark_line(strokeWidth=2)
+        .encode(
+            x=alt.X("date:T", title=None, scale=span, axis=months),
+            y=alt.Y("value:Q", title="Swings, yearly rate", axis=alt.Axis(format="%")),
+            color=alt.Color(
+                "series:N",
+                scale=alt.Scale(domain=list(DIAL_COLOURS), range=list(DIAL_COLOURS.values())),
+                legend=alt.Legend(title=None, orient="top"),
+            ),
+            tooltip=[
+                alt.Tooltip("date:T", title="Date"),
+                alt.Tooltip("series:N", title="Portfolio"),
+                alt.Tooltip("value:Q", title="Swings, yearly rate", format=".1%"),
+            ],
+        )
+    )
+    asked = pd.DataFrame({"value": [target], "label": [f"asked for {pct(target, 0)}"]})
+    rule_line = alt.Chart(asked).mark_rule(strokeDash=[6, 4], color=MUTED).encode(y="value:Q")
+    rule_text = (
+        alt.Chart(asked)
+        .mark_text(align="left", baseline="bottom", dx=6, dy=-4, color=MUTED)
+        .encode(x=alt.value(0), y="value:Q", text="label:N")
+    )
+    st.altair_chart((lines + rule_line + rule_text).properties(height=280), width="stretch")
+
+    share = replay.exposure.rename("share").reset_index()
+    share.columns = ["date", "share"]
+    area = (
+        alt.Chart(share)
+        .mark_area(interpolate="step-after", color=DIAL_COLOUR, opacity=0.18, line={"color": DIAL_COLOUR, "strokeWidth": 1.5})
+        .encode(
+            x=alt.X("date:T", title=None, scale=span, axis=months),
+            y=alt.Y(
+                "share:Q",
+                title="Share in the mix",
+                axis=alt.Axis(format="%", values=[0, 0.25, 0.5, 0.75, 1.0]),
+                scale=alt.Scale(domain=[0, 1]),
+            ),
+            tooltip=[alt.Tooltip("date:T", title="Date"), alt.Tooltip("share:Q", title="In the mix", format=".0%")],
+        )
+        .properties(height=180)
+    )
+    st.altair_chart(area, width="stretch")
+
+    whole, wildest = RULES[rule].dial
+    trades = summary["dial_turnover_per_year"] / summary["mean_exposure"] if summary["mean_exposure"] > 0 else 0.0
+    lines_of_text = [
+        f"From {day(history.start)} to {day(history.end)} a customer who asked for {pct(target, 0)} swings would "
+        f"have felt **{pct(summary['delivered_vol'])}** a year, {summary['delivered_over_target']:.2f} times the "
+        f"target. The dial was reset every five sessions from what it had seen up to then. It kept "
+        f"{pct(summary['mean_exposure'], 0)} of the money in the mix on average and as little as "
+        f"{pct(summary['min_exposure'], 0)} on {day(replay.low_date)}."
+    ]
+    if summary["share_at_cap"] > 0.5:
+        lines_of_text.append(
+            f"The mix alone swung less than you asked for on {pct(summary['share_at_cap'], 0)} of the days, and "
+            "the page never borrows, so you got less than you asked for."
+        )
+    lines_of_text.append(
+        f"The dial alone traded the stock holding about {trades:.1f} times a year, on top of the monthly "
+        "re-optimisation. Three years is a short test with no crash like 2020 in it: in our longer S&P 500 test "
+        f"this dial delivered {whole:.2f} times the target overall and {wildest:.2f} times in the wildest year. "
+        "Cash is assumed to earn nothing and trading costs are not included."
+    )
+    st.write(" ".join(lines_of_text))
 
 
 def section_limits() -> None:
-    st.subheader("5. Read this before using it")
+    st.subheader("6. Read this before using it")
     st.markdown(
         """
 - **No view on returns.** The optimiser only knows how stocks have moved together. A stock with a
@@ -398,6 +569,11 @@ def section_limits() -> None:
   the rule (long only or not) matters more. The cleaning earns its keep on hundreds of stocks.
 - **No costs, no taxes, no borrowing.** The backtest trades for free and the "no limits" rule assumes
   shorting and borrowing at no cost, which no retail account gets.
+- **The risk dial is a weekly habit.** The split between the mix and cash is right for today only. In
+  the tests it kept its promise when it was reset every week, and it still overshot during the fastest
+  weeks of the 2020 crash. A dial reset once a month delivered one and a half times the swings asked for.
+- **Swings are not the same as losses.** A portfolio set to swing 8% a year can still fall 14% over a
+  few bad weeks. The dial controls the size of the ride, not its direction.
 - **Educational.** Prices come from Yahoo Finance and can contain errors. Nothing here is investment advice.
 """
     )

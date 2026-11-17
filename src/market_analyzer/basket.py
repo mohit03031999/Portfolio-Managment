@@ -1,6 +1,6 @@
 """What the web page computes for one basket of stocks.
 
-Two questions, both answered from the market pack without any return
+Four questions, all answered from the market pack without any return
 forecast:
 
 :func:`analyse_basket`
@@ -12,10 +12,17 @@ forecast:
     What would have happened over the last few years if the basket had been
     re-optimised every month: realised risk against the forecast (the
     honesty ratio), drawdowns, and the growth of 100 dollars.
+:func:`dial_basket`
+    For a customer who accepts a given yearly swing, how much of the money
+    goes into the mix today and how much stays in cash.
+:func:`dial_history`
+    What that customer would have felt over the backtest: swings asked for
+    against swings delivered, and the share of money in the mix day by day.
 
 The rules are the ones studied on the S&P 500: long only, a gross-exposure
 cap of two, and no limits. Each carries the honesty band measured there,
-so the page can say how far the forecast was trusted in that test.
+so the page can say how far the forecast was trusted in that test, and the
+score of the risk dial in the same test (``docs/risk_dial.md``).
 """
 
 from __future__ import annotations
@@ -35,14 +42,30 @@ from market_analyzer.optimizer import (
     portfolio_variance,
     weight_statistics,
 )
+from market_analyzer.risk_dial import (
+    CASH,
+    DialConfig,
+    DialResult,
+    basket_volatility,
+    dial_backtest,
+    exposure_for_target,
+    split_with_cash,
+)
 
 PERIODS_PER_YEAR = 252
 EQUAL_WEIGHT = "equal_weight"
+DIAL = DialConfig(target_vol=0.10, forecast="higher")  # the settings the page uses; only the target changes
 
 
 @dataclass(frozen=True)
 class Rule:
-    """A portfolio rule as the page offers it."""
+    """A portfolio rule as the page offers it.
+
+    ``honesty`` is the band of realised over forecast volatility measured on
+    the S&P 500. ``dial`` is how the risk dial scored there with this rule,
+    swings delivered over swings asked for: over the whole test, and in its
+    wildest year.
+    """
 
     key: str
     label: str
@@ -50,6 +73,7 @@ class Rule:
     prefix: str
     honesty: tuple[float, float]
     note: str
+    dial: tuple[float, float]
 
 
 RULES: dict[str, Rule] = {
@@ -60,6 +84,7 @@ RULES: dict[str, Rule] = {
         "longonly_",
         (0.85, 1.02),
         "Every weight is zero or positive and they add to one. The mix a normal brokerage account can hold.",
+        (0.96, 1.32),
     ),
     "cap2": Rule(
         "cap2",
@@ -68,6 +93,7 @@ RULES: dict[str, Rule] = {
         "gross2_",
         (0.95, 1.10),
         "Longs plus shorts may add to at most twice the money, so at most half a dollar short per dollar invested.",
+        (1.09, 1.48),
     ),
     "unconstrained": Rule(
         "unconstrained",
@@ -76,6 +102,7 @@ RULES: dict[str, Rule] = {
         "minvar_",
         (1.25, 1.35),
         "The textbook answer. It shorts freely and borrows several times over; the forecast runs optimistic.",
+        (1.40, 1.97),
     ),
 }
 
@@ -306,6 +333,107 @@ def backtest_basket(
         else {}
     )
     return BasketBacktest(strategy=name, result=result, summary=summary, growth=growth, worst=worst)
+
+
+@dataclass
+class BasketDial:
+    """Today's split between the mix and cash for one volatility target."""
+
+    target_vol: float
+    model_vol: float
+    recent_vol: float
+    forecast_vol: float
+    exposure: float
+    portfolio: pd.Series
+
+    @property
+    def cash(self) -> float:
+        return 1.0 - self.exposure
+
+    @property
+    def capped(self) -> bool:
+        """True when the mix alone swings less than the target, so all the money is in it."""
+        return self.forecast_vol < self.target_vol
+
+    @property
+    def expected_vol(self) -> float:
+        """Swings to expect from the split: the target, or the mix's own forecast when the cap binds."""
+        return self.exposure * self.forecast_vol
+
+
+def dial_basket(pack: MarketPack, analysis: BasketAnalysis, target_vol: float) -> BasketDial:
+    """How much of the money goes into the analysed mix for a customer who accepts ``target_vol`` a year.
+
+    The forecast is the higher of the risk model's number and the mix's own
+    recent behaviour (the last 252 sessions, recent days counting most), the
+    rule that kept its promise best in the S&P 500 test. The page never
+    borrows, so the share is at most one.
+    """
+    if not target_vol > 0:
+        raise ValueError("The target must be positive.")
+    panel = pack.returns.loc[:, analysis.tickers].astype("float64")
+    recent = basket_volatility(analysis.weights, panel, DIAL.lookback, DIAL.halflife, PERIODS_PER_YEAR)
+    forecast = max(analysis.optimised_vol, recent)
+    exposure = float(exposure_for_target(target_vol, forecast, DIAL.max_exposure))
+    return BasketDial(
+        target_vol=float(target_vol),
+        model_vol=float(analysis.optimised_vol),
+        recent_vol=float(recent),
+        forecast_vol=float(forecast),
+        exposure=exposure,
+        portfolio=split_with_cash(analysis.weights, exposure),
+    )
+
+
+@dataclass
+class BasketDialHistory:
+    """The dial replayed over a basket backtest."""
+
+    target_vol: float
+    result: DialResult
+    summary: dict[str, float]
+    low_date: pd.Timestamp
+    rolling: pd.DataFrame
+
+    @property
+    def exposure(self) -> pd.Series:
+        return self.result.daily["exposure"]
+
+
+def dial_history(pack: MarketPack, backtest: BasketBacktest, target_vol: float, rolling_sessions: int = 63) -> BasketDialHistory:
+    """What a customer with this target would have felt over ``backtest``.
+
+    The split is reset every five sessions from returns before that day.
+    ``rolling`` holds the annualised volatility over the trailing
+    ``rolling_sessions`` sessions for the mix alone (``mix``) and for the mix
+    plus cash (``dialled``).
+    """
+    weights = backtest.result.weights[backtest.strategy]
+    panel = pack.returns.loc[:, list(weights.columns)].astype("float64")
+    config = DialConfig(
+        target_vol=float(target_vol),
+        forecast=DIAL.forecast,
+        lookback=DIAL.lookback,
+        halflife=DIAL.halflife,
+        dial_every=DIAL.dial_every,
+        max_exposure=DIAL.max_exposure,
+    )
+    result = dial_backtest(backtest.result, backtest.strategy, panel, config)
+    daily = result.daily
+    annualise = math.sqrt(PERIODS_PER_YEAR)
+    rolling = pd.DataFrame(
+        {
+            "mix": daily["basket_return"].rolling(rolling_sessions).std(ddof=1) * annualise,
+            "dialled": daily["return"].rolling(rolling_sessions).std(ddof=1) * annualise,
+        }
+    ).dropna()
+    return BasketDialHistory(
+        target_vol=float(target_vol),
+        result=result,
+        summary=result.summary(),
+        low_date=pd.Timestamp(daily["exposure"].idxmin()),
+        rolling=rolling,
+    )
 
 
 def _unique(items: list[str]) -> list[str]:

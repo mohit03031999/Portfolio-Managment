@@ -2,15 +2,16 @@
 
 ## 0. In one paragraph
 
-A Streamlit page where someone picks stocks from the US market and sees, for that basket, how much an equal split would swing, how much the minimum-variance mix is forecast to swing, how that mix spreads the money and why, and what would have happened over the last three years with monthly re-optimisation. Every number comes from the same `market_analyzer` code that produced the S&P 500 studies; the page adds no maths of its own. It makes no forecast of returns.
+A Streamlit page where someone picks stocks from the US market and sees, for that basket, how much an equal split would swing, how much the minimum-variance mix is forecast to swing, how that mix spreads the money and why, how much of their money to put in it for the yearly swings they accept, and what would have happened over the last three years with monthly re-optimisation. Every number comes from the same `market_analyzer` code that produced the S&P 500 studies; the page adds no maths of its own. It makes no forecast of returns.
 
 ## 1. What the page shows
 
 1. **Pick your stocks.** A search box over 3,368 US common stocks (NYSE, NYSE American, NASDAQ, Cboe BZX), four preset baskets, and a limit of sixty names. The basket is written into the page address, so a link shares a basket with no database.
 2. **How much this basket swings.** Three tiles: the forecast annual volatility of an equal split, the forecast for the optimised mix with its reduction, and the effective number of stocks the mix leans on. One paragraph gives the window, what the equal split actually did over it, and the honesty band measured on the S&P 500 for the chosen rule.
 3. **How the optimiser spreads the money.** A grouped bar chart of optimised against equal weights, a line of concentration facts, and a table with each stock's own volatility, its average cleaned correlation with the rest, its share of the mix's risk, and a plain-words reason for its weight.
-4. **What would have happened.** The rolling backtest from `market_analyzer.backtest` on the basket: every 21 sessions over the last three years the mix is re-optimised on the previous 500 sessions and held. Four tiles (realised volatility of each book, the honesty ratio, worst drawdowns), the growth of 100 dollars, the returns, the worst forecast miss, and the turnover.
-5. **Read this before using it.** No view on returns, the past is the only input, few stocks means little cleaning, no costs, educational.
+4. **How much of your money goes in.** The customer's risk dial, added 2026-11-17. A slider sets the yearly swings the visitor accepts, from 2% to 30%. Three tiles give the share in the mix, the share in cash, and the swings to expect. One paragraph shows the arithmetic: the risk model's forecast, the mix's recent behaviour, the higher of the two, and the division. A table lists the portfolio line by line with cash on top. The background and the test behind it are in `docs/risk_dial.md`.
+5. **What would have happened.** The rolling backtest from `market_analyzer.backtest` on the basket: every 21 sessions over the last three years the mix is re-optimised on the previous 500 sessions and held. Four tiles (realised volatility of each book, the honesty ratio, worst drawdowns), the growth of 100 dollars, the returns, the worst forecast miss, and the turnover. Below it, **With your risk dial** replays the dial over the same three years, reset every five sessions: swings asked for against swings delivered, the average and lowest share in the mix, a chart of trailing three-month volatility for the mix alone and for the mix plus cash, and a chart of the share in the mix.
+6. **Read this before using it.** No view on returns, the past is the only input, few stocks means little cleaning, no costs, the dial is a weekly habit, swings are not losses, educational.
 
 The sidebar holds the three settings: the portfolio rule (long only; gross exposure capped at 2; no limits), the correlation cleaning (RIE; clipping; plain sample), and the history window for the risk model (four or two years).
 
@@ -21,7 +22,8 @@ The sidebar holds the three settings: the portfolio rule (long only; gross expos
 | universe | `src/market_analyzer/market_universe.py` | symbol files and screener in, candidate table out, with the count each rule removed |
 | pack builder | `src/market_analyzer/market_pack.py` | batched Yahoo download, history checks, pack files, build report, pack fetch |
 | build script | `examples/build_market_pack.py` | runs the two above into `data/pack/`; raw downloads cached in `data/raw/` |
-| engine | `src/market_analyzer/basket.py` | `analyse_basket` and `backtest_basket`: the numbers the page shows |
+| engine | `src/market_analyzer/basket.py` | `analyse_basket`, `backtest_basket`, `dial_basket` and `dial_history`: the numbers the page shows |
+| risk dial | `src/market_analyzer/risk_dial.py` | the split between a basket and cash for a volatility target, and its replay over a backtest |
 | page | `app/streamlit_app.py` | layout, settings, charts, text; caches the pack and every result |
 | refresh | `.github/workflows/refresh-pack.yml` | nightly rebuild, published as the `pack-latest` GitHub release |
 
@@ -78,9 +80,11 @@ The single-day limit catches data errors and one-off events alike (a biotech tha
 
 The **reason** for each weight comes from two ranks inside the basket, the stock's own volatility and its average cleaned correlation with the others: a big weight is "calm", "moves on its own", or both; a zero weight is "jumpy and moves with the rest", "moves with the rest, so the others already cover it", or "jumpier than the stocks that play the same role"; a short is "it moves so closely with others that betting against it offsets their swings".
 
-The **honesty band** per rule is the one measured on the S&P 500 at 1,000 and 250 days: long only 0.85 to 1.02, cap 2 about 0.95 to 1.10, unconstrained 1.25 to 1.35. It is a prior; section 4 of the page measures the ratio for the basket itself.
+The **honesty band** per rule is the one measured on the S&P 500 at 1,000 and 250 days: long only 0.85 to 1.02, cap 2 about 0.95 to 1.10, unconstrained 1.25 to 1.35. It is a prior; section 5 of the page measures the ratio for the basket itself.
 
 `backtest_basket(pack, tickers, rule, cleaning, window=500, years=3, holding=21)` runs `run_backtest` with the equal-weight book and the chosen strategy (`longonly_rie`, `gross2_rie`, `minvar_rie`, or the same with `clipped` or `sample`) on the last `window + 3 × 252` sessions, and returns the summary, the growth of 100 dollars, and the holding period with the worst forecast miss. A young name joins the backtest as soon as its window is complete.
+
+`dial_basket(pack, analysis, target_vol)` is today's split. The forecast is the higher of the model's volatility for the mix and `basket_volatility` of the mix over the last 252 sessions with a 20-session half-life; the share in the mix is the target over that forecast, capped at one because the page never borrows; the result carries the stock weights scaled by the share plus a `CASH` line. `dial_history(pack, backtest, target_vol)` replays the same rule over a finished basket backtest with `dial_backtest`, resetting the split every five sessions from returns before that day, and returns the summary (delivered volatility, delivered over asked, average and lowest share, the dial's own turnover) and the trailing 63-session volatility of the mix alone and of the mix plus cash. Each rule carries the dial's score from the S&P 500 study, delivered over asked for the whole test and for 2020: long only 0.96 and 1.32, cap 2 1.09 and 1.48, unconstrained 1.40 and 1.97. The slider only reruns the dial, which takes milliseconds; the analysis and the backtest stay cached.
 
 ## 5. Running and testing locally
 
@@ -89,7 +93,7 @@ uv pip install --python .venv/bin/python -e ".[app]"
 .venv/bin/streamlit run app/streamlit_app.py
 ```
 
-`MARKET_PACK_DIR` points the page at another pack folder. The tests cover the listing rules on hand-made symbol files, the history checks on synthetic prices, the pack round trip and fetch, and the engine on a synthetic factor market (`tests/test_market_universe.py`, `tests/test_market_pack.py`, `tests/test_basket.py`). The page itself is exercised headlessly with Streamlit's `AppTest`; the whole journey renders in under two seconds, and each preset, rule, cleaning and window change was checked that way before deployment.
+`MARKET_PACK_DIR` points the page at another pack folder. The tests cover the listing rules on hand-made symbol files, the history checks on synthetic prices, the pack round trip and fetch, and the engine on a synthetic factor market (`tests/test_market_universe.py`, `tests/test_market_pack.py`, `tests/test_basket.py`). `tests/test_webpage.py` runs the page itself headlessly with Streamlit's `AppTest` on the committed pack: it must render all six sections without an exception, and the dial tiles must follow the slider. The page is exercised that way; the whole journey renders in under two seconds, and each preset, rule, cleaning and window change was checked that way before deployment.
 
 ## 6. Deployment
 
@@ -114,4 +118,4 @@ Three things the small baskets teach that the S&P 500 did not. The optimiser's g
 
 ## 8. Limits and what comes next
 
-Not in version 1: picking a basket from the whole market (the risk model needs far fewer stocks than sessions, so a pre-selection step comes first), sector exposure, saved portfolios beyond the link, volatility targeting, trading costs. The page shows what the research found and nothing it did not test: it has no return view, it cannot see shocks, and with a handful of stocks the random-matrix cleaning is almost idle.
+Not in version 1: picking a basket from the whole market (the risk model needs far fewer stocks than sessions, so a pre-selection step comes first), sector exposure, saved portfolios beyond the link, trading costs, a return on cash, and a time horizon for the customer (volatility targeting arrived with the risk dial on 2026-11-17). The page shows what the research found and nothing it did not test: it has no return view, it cannot see shocks, and with a handful of stocks the random-matrix cleaning is almost idle.

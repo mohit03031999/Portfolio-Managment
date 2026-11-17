@@ -19,7 +19,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
 plots = ["matplotlib>=3.8"]
-app = ["streamlit>=1.40", "pyarrow>=15.0", "requests>=2.31"]
+app = ["streamlit>=1.67", "pyarrow>=15.0", "requests>=2.31"]
 
 [project.scripts]
 market-analyzer = "market_analyzer.cli:main"

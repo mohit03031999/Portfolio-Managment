@@ -7,13 +7,17 @@ import pandas as pd
 import pytest
 
 from market_analyzer.basket import (
+    DIAL,
     RULES,
     analyse_basket,
     backtest_basket,
     describe_position,
+    dial_basket,
+    dial_history,
     strategy_name,
 )
 from market_analyzer.market_pack import NOTE_YOUNG, MarketPack
+from market_analyzer.risk_dial import CASH, basket_volatility
 
 
 def _pack(seed: int = 0, n_days: int = 1600) -> MarketPack:
@@ -132,3 +136,55 @@ def test_backtest_basket_reports_both_books_and_the_worst_month():
     assert test.end > test.start
     # the young ticker joins once its window is complete, so late decisions see more names
     assert test.result.periods["n_assets"].max() >= 7
+
+
+def test_dial_basket_splits_the_money_by_target_over_the_higher_forecast():
+    pack = _pack()
+    basket = ["CALM", "JUMPY", "ALPHA", "BETA", "GAMMA", "DELTA", "TWIN"]
+    analysis = analyse_basket(pack, basket, "long_only", "rie", 1000)
+    recent = basket_volatility(analysis.weights, pack.returns[basket].astype("float64"), DIAL.lookback, DIAL.halflife)
+    half = dial_basket(pack, analysis, analysis.optimised_vol / 2)
+    assert half.model_vol == pytest.approx(analysis.optimised_vol)
+    assert half.recent_vol == pytest.approx(recent)
+    assert half.forecast_vol == pytest.approx(max(analysis.optimised_vol, recent))
+    assert half.exposure == pytest.approx(half.target_vol / half.forecast_vol)
+    assert 0.0 < half.exposure <= 0.5 + 1e-9
+    assert not half.capped
+    assert half.expected_vol == pytest.approx(half.target_vol)
+    assert half.portfolio.sum() == pytest.approx(1.0)
+    assert half.portfolio[CASH] == pytest.approx(half.cash)
+    assert half.portfolio.drop(CASH).to_numpy() == pytest.approx((analysis.weights * half.exposure).to_numpy())
+
+    bold = dial_basket(pack, analysis, 0.90)
+    assert bold.capped and bold.exposure == pytest.approx(1.0) and bold.cash == pytest.approx(0.0)
+    assert bold.expected_vol == pytest.approx(bold.forecast_vol)
+    with pytest.raises(ValueError, match="positive"):
+        dial_basket(pack, analysis, 0.0)
+
+
+def test_dial_history_replays_the_split_over_the_backtest():
+    pack = _pack()
+    basket = ["CALM", "JUMPY", "ALPHA", "BETA", "GAMMA", "DELTA", "TWIN", "YOUNG"]
+    test = backtest_basket(pack, basket, "long_only", "rie", window=500, years=2.0, holding=21)
+    mix_vol = float(test.summary.loc["longonly_rie", "ann_volatility"])
+    history = dial_history(pack, test, mix_vol / 2)
+    daily = history.result.daily
+    assert list(daily.index) == list(test.result.daily_returns.index)
+    assert daily["basket_return"].to_numpy() == pytest.approx(test.result.daily_returns["longonly_rie"].to_numpy())
+    assert history.summary["delivered_over_target"] == pytest.approx(1.0, abs=0.2)
+    assert history.summary["delivered_vol"] < mix_vol
+    assert 0.0 < history.summary["mean_exposure"] < 1.0
+    assert history.exposure.loc[history.low_date] == pytest.approx(history.summary["min_exposure"])
+    assert list(history.rolling.columns) == ["mix", "dialled"]
+    assert (history.rolling["dialled"] <= history.rolling["mix"] + 1e-12).all()
+    assert len(history.rolling) == len(daily) - 62
+
+    everything_in = dial_history(pack, test, 5.0)
+    assert (everything_in.exposure == 1.0).all()
+    assert everything_in.summary["delivered_vol"] == pytest.approx(mix_vol)
+
+
+def test_every_rule_carries_its_dial_score():
+    for rule in RULES.values():
+        whole, wildest = rule.dial
+        assert 0.5 < whole < wildest < 3.0

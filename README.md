@@ -162,7 +162,7 @@ The fitted rule cascades on real data because the empirical bulk is wider than t
 
 ## The web page
 
-`app/streamlit_app.py` is a Streamlit page over the same code: pick stocks from 3,368 US common stocks, see how much an equal split would swing against the minimum-variance mix, how the mix spreads the money and why, and what would have happened over the last three years with monthly re-optimisation. It runs on the market pack in `data/pack/`, built by `examples/build_market_pack.py`. Run it with `.venv/bin/streamlit run app/streamlit_app.py`; the design, the data rules and the deployment steps are in [docs/webpage.md](docs/webpage.md).
+`app/streamlit_app.py` is a Streamlit page over the same code: pick stocks from 3,368 US common stocks, see how much an equal split would swing against the minimum-variance mix, how the mix spreads the money and why, how much of the money to put in the mix for a chosen yearly swing with the rest in cash (the risk dial), and what would have happened over the last three years with monthly re-optimisation. It runs on the market pack in `data/pack/`, built by `examples/build_market_pack.py`. Run it with `.venv/bin/streamlit run app/streamlit_app.py`; the design, the data rules and the deployment steps are in [docs/webpage.md](docs/webpage.md).
 
 ## Layout
 
@@ -178,9 +178,12 @@ docs/long_only_minimum_variance.md  the long-only optimiser: why weights sum to 
 docs/gross_exposure_cap.md          the gross-exposure dial between long-only and unconstrained: the budget-for-shorting idea, the L² bound, the band optimality conditions, the active-set solver, and the sweep results
 docs/published_comparison.md        our long-only, gross-cap and cleaning results against Jagannathan–Ma, DeMiguel et al., Fan–Zhang–Yu, Ledoit–Wolf and Bun–Bouchaud–Potters, numbers read from their tables; which libraries implement the constraints
 docs/webpage.md                     the web page: what it shows, the architecture, the market pack and its rules with counts, the engine, running, deployment, what the presets showed
-app/streamlit_app.py              the web page (Streamlit): pick stocks, see the risk, the mix, and what would have happened
+docs/return_prediction_review.md    beginner-level literature review of return prediction: why forecasts are hard, price-based rules, what survives costs and replication, how a signal becomes a portfolio with a cleaned covariance, machine learning and news; word list, verified numbers, the survivorship-free answer key
+docs/risk_dial.md                   the customer's risk dial: splitting money between the basket and cash to hit a volatility target, three forecasts and three reset speeds, the asked-against-delivered test on the real market and in the lab, written for beginners
+docs/return_signals.md              the signal lab: point-in-time return signals, cross-sectional scoring (IC, deciles, calibration slope, decay), results on the pack, and why the pack cannot score returns (survivorship)
+app/streamlit_app.py              the web page (Streamlit): pick stocks, see the risk, the mix, the split with cash for a risk target, and what would have happened
 data/pack/                        the market pack the page runs on: daily returns, per-stock facts, manifest, build report
-src/market_analyzer/              download, returns, summary, risk matrices, nonlinear shrinkage (rie.py), optimizer (unconstrained, long-only, gross cap), backtest, market universe and pack (market_universe.py, market_pack.py), basket engine for the page (basket.py)
+src/market_analyzer/              download, returns, summary, risk matrices, nonlinear shrinkage (rie.py), optimizer (unconstrained, long-only, gross cap), backtest, market universe and pack (market_universe.py, market_pack.py), basket engine for the page (basket.py), return signals and their cross-sectional scoring (signals.py, signal_lab.py), the customer's risk dial (risk_dial.py)
 examples/pull_custom_basket.py    short script for a three-name basket
 examples/sp500_marchenko_pastur.py  S&P 500 spectrum at three window lengths
 examples/sp500_minvar_backtest.py   rolling minimum-variance test, raw against cleaned
@@ -202,9 +205,11 @@ examples/sp500_kendall_study.py          Kendall's tau as the source of directio
 examples/sp500_memory_length.py          how long a memory for the skeleton: room forecasts vs history length, real vs shuffled, and whether sizes along old directions carry over
 examples/sp500_two_speed_study.py        design A, directions from the past and sizes from the present, vs the 1000- and 250-day RIEs and two volatility-swap controls, real market and Gaussian lab
 examples/sp500_long_only_study.py        long-only minimum variance against the unconstrained optimiser: sample covariance and RIE at 1000 and 250 days on the same dates, equal weight, real market and Gaussian lab with an oracle
+examples/sp500_risk_dial_study.py        the customer's risk dial on the saved baskets: delivered against asked volatility for eight dials, four baskets, real market and Gaussian lab, plus the customer table for targets of 4% to 12%
 examples/sp500_gross_cap_study.py        the gross-exposure dial from long-only to unconstrained: caps 1, 1.25, 1.5, 2, 3, 5 and none, sample covariance and RIE at 1000 and 250 days, first half against second half, real market and Gaussian lab with an oracle
 examples/sp500_fat_tails.py              four pictures of fat tails: histogram, clustering, the standardisation fix, concentration
 examples/build_market_pack.py            builds the market pack: NASDAQ Trader symbol files and screener in, listing rules, batched Yahoo download, history checks, pack and report out
+examples/signal_lab.py                   ranks every stock in the pack by momentum, reversal, volatility, beta and past mean each month and scores the rankings against the next month, with controls
 ```
 
 `data/` is created when you pull and is gitignored.
