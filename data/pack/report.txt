@@ -1,4 +1,4 @@
-Market pack built 2026-11-11T22:56:45+00:00
+Market pack built 2026-11-25T14:54:59+00:00
 Sessions 2018-01-03 to 2026-11-10 (2226 days)
 
 Listing rules (NASDAQ Trader symbol files + NASDAQ screener):
@@ -20,22 +20,46 @@ History rules (Yahoo Finance daily prices):
   removed: too thinly traded                                   375
   removed: a single-day move beyond the limit                   59
   removed: price below the floor                                35
-  in the pack                                                 3368
-    eligible for the risk model                               3040
-    young (under three years of history)                       328
+  removed: second share class of a company in the pack          21
+  in the pack                                                 3347
+    eligible for the risk model                               3020
+    young (under three years of history)                       327
 
-By exchange: NYSE 1668, NASDAQ 1636, NYSE American 63, Cboe BZX 1
+One share class per company (the class kept stands in for the one dropped):
+  BATRK    kept, BATRA dropped
+  BELFB    kept, BELFA dropped
+  BF-B     kept, BF-A dropped
+  BH-A     kept, BH dropped
+  BRK-B    kept, BRK-A dropped
+  CENTA    kept, CENT dropped
+  FOXA     kept, FOX dropped
+  FWONK    kept, FWONA dropped
+  GEF      kept, GEF-B dropped
+  GLIBK    kept, GLIBA dropped
+  GOOGL    kept, GOOG dropped
+  HEI      kept, HEI-A dropped
+  LBTYA    kept, LBTYK dropped
+  LEN      kept, LEN-B dropped
+  LILAK    kept, LILA dropped
+  LLYVK    kept, LLYVA dropped
+  NWSA     kept, NWS dropped
+  RUSHA    kept, RUSHB dropped
+  UAA      kept, UA dropped
+  UHAL-B   kept, UHAL dropped
+  Z        kept, ZG dropped
+
+By exchange: NYSE 1660, NASDAQ 1623, NYSE American 63, Cboe BZX 1
 By sector:
-  Consumer Discretionary          659
+  Consumer Discretionary          650
   Finance                         577
   Health Care                     534
-  Technology                      457
-  Industrials                     432
+  Technology                      456
+  Industrials                     430
   Real Estate                     157
   Energy                          130
   Utilities                       113
   Basic Materials                 109
   Consumer Staples                 86
-  Telecommunications               58
-  Unknown                          29
+  Telecommunications               55
   Miscellaneous                    27
+  Unknown                          23

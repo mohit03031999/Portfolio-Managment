@@ -38,6 +38,7 @@ from market_analyzer.market_pack import (  # noqa: E402
     build_manifest,
     daily_returns_panel,
     download_history,
+    drop_second_share_classes,
     format_report,
     write_pack,
 )
@@ -49,6 +50,7 @@ from market_analyzer.market_universe import (  # noqa: E402
     fetch_screener,
     fetch_symbol_directory,
 )
+from market_analyzer.share_classes import share_class_candidates  # noqa: E402
 
 
 def say(message: str) -> None:
@@ -129,6 +131,9 @@ def main() -> None:
 
     say("running the history checks")
     checks = assess_history(adj_close, volume, rules)
+    checks, share_classes = drop_second_share_classes(checks)
+    if share_classes:
+        say(f"  {len(share_classes)} extra share classes dropped: " + ", ".join(f"{d} (kept {k})" for d, k in sorted(share_classes.items())))
     kept = checks.index[checks["reason"] == ""]
     say(f"  {len(kept)} tickers pass; {int(checks['eligible'].sum())} eligible, {int(checks['young'].sum())} young")
 
@@ -139,7 +144,11 @@ def main() -> None:
     meta = meta.drop(columns=["directory_name"], errors="ignore")
 
     sources = {"symbol_directory": SYMBOL_DIRECTORY_URL, "screener": SCREENER_URL, "prices": "Yahoo Finance via yfinance"}
-    manifest = build_manifest(args.start, returns, meta, checks, rules, universe_counts, args.min_market_cap, sources, failed)
+    names = facts["name"].reindex(kept) if "name" in facts.columns else pd.Series(dtype=str)
+    candidates_to_check = share_class_candidates(names.dropna())
+    manifest = build_manifest(
+        args.start, returns, meta, checks, rules, universe_counts, args.min_market_cap, sources, failed, share_classes, candidates_to_check
+    )
     report = format_report(manifest, checks.join(facts, how="left"))
     write_pack(out, returns, meta, manifest, report)
     say(f"pack written to {out}")

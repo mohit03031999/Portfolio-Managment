@@ -123,6 +123,8 @@ def main() -> None:
 
     if "basket" not in st.session_state:
         from_url = [t.strip().upper() for t in str(st.query_params.get("basket", "")).split(",") if t.strip()]
+        stand_in = dict(pack.manifest.get("share_classes", {}) or {})  # a dropped share class opens as the class kept
+        from_url = list(dict.fromkeys(stand_in.get(t, t) for t in from_url))
         initial = [t for t in from_url if t in labels] or [t for t in PRESETS["Big tech"] if t in labels]
         st.session_state["basket"] = initial
 

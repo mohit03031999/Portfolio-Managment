@@ -21,6 +21,11 @@ the limit (250% by default): such a day is either a data error or a one-off
 event that would dominate any covariance estimate. A ticker with under three years of history
 stays in the pack but is marked ``young``: the risk model needs a long
 window, so the page lists it but cannot optimise it.
+
+A company with several share classes, such as GOOGL and GOOG, enters once:
+:func:`drop_second_share_classes` keeps one class per company
+(:mod:`market_analyzer.share_classes`) and the manifest records which
+class stands in for each one dropped, so a saved basket can be mapped.
 """
 
 from __future__ import annotations
@@ -37,6 +42,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from .share_classes import second_share_classes
+
 PACK_VERSION = 1
 RETURNS_FILE = "returns.parquet"
 META_FILE = "meta.parquet"
@@ -52,6 +59,7 @@ REASON_PRICE = "price below the floor"
 REASON_ILLIQUID = "too thinly traded"
 REASON_GAPS = "too many missing days"
 REASON_ANOMALY = "a single-day move beyond the limit"
+REASON_SHARE_CLASS = "second share class of a company in the pack"
 NOTE_YOUNG = "under three years of history"
 
 META_CHECK_COLUMNS = [
@@ -286,6 +294,23 @@ def assess_history(
     return table
 
 
+def drop_second_share_classes(checks: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, str]]:
+    """Mark every extra share class among the passing tickers, so each company enters the pack once.
+
+    Only tickers that pass the history checks compete, so a company whose
+    preferred class fails a check keeps another class. Returns the updated
+    checks and a map from each dropped ticker to the class kept in its place.
+    """
+    checks = checks.copy()
+    passing = checks.index[checks["reason"] == ""]
+    extra = second_share_classes(passing)
+    if extra:
+        dropped = list(extra)
+        checks.loc[dropped, "reason"] = REASON_SHARE_CLASS
+        checks.loc[dropped, ["eligible", "young"]] = False
+    return checks, extra
+
+
 def daily_returns_panel(adj_close: pd.DataFrame) -> pd.DataFrame:
     """Simple daily returns as float32, missing where either close is missing."""
     adj_close = adj_close.sort_index()
@@ -308,8 +333,14 @@ def build_manifest(
     min_market_cap: float,
     sources: dict[str, str],
     failed: list[str],
+    share_classes: dict[str, str] | None = None,
+    share_class_candidates: list[tuple[str, ...]] | None = None,
 ) -> dict[str, object]:
-    """``meta`` holds the tickers in the pack; ``checks`` every ticker that was checked."""
+    """``meta`` holds the tickers in the pack; ``checks`` every ticker that was checked.
+
+    ``share_classes`` maps each dropped share class to the class kept for its
+    company; ``share_class_candidates`` lists name matches for a person to check.
+    """
     counts = checks["reason"].value_counts().to_dict()
     return {
         "pack_version": PACK_VERSION,
@@ -327,6 +358,8 @@ def build_manifest(
         "history_counts": {str(key): int(value) for key, value in counts.items() if key},
         "download_failed": int(len(failed)),
         "sources": sources,
+        "share_classes": dict(sorted((share_classes or {}).items())),
+        "share_class_candidates": [list(group) for group in (share_class_candidates or [])],
     }
 
 
@@ -418,6 +451,18 @@ def format_report(manifest: dict[str, object], meta: pd.DataFrame) -> str:
     lines.append(f"  {'in the pack':<57s} {manifest['n_tickers']:>6}")
     lines.append(f"    {'eligible for the risk model':<55s} {manifest['n_eligible']:>6}")
     lines.append(f"    {'young (' + NOTE_YOUNG + ')':<55s} {manifest['n_young']:>6}")
+    share_classes = dict(manifest.get("share_classes", {}) or {})
+    if share_classes:
+        lines.append("")
+        lines.append("One share class per company (the class kept stands in for the one dropped):")
+        for dropped, kept_class in sorted(share_classes.items(), key=lambda item: item[1]):
+            lines.append(f"  {kept_class:<8s} kept, {dropped} dropped")
+    candidates = list(manifest.get("share_class_candidates", []) or [])
+    if candidates:
+        lines.append("")
+        lines.append("Names that match but are on no list yet; check by hand whether they are share classes:")
+        for group in candidates:
+            lines.append("  " + ", ".join(group))
     lines.append("")
     kept = meta[meta["reason"] == ""]
     if "exchange" in kept.columns:

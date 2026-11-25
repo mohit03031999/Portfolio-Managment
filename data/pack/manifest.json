@@ -1,13 +1,13 @@
 {
   "pack_version": 1,
-  "built_at": "2026-11-11T22:56:45+00:00",
+  "built_at": "2026-11-25T14:54:59+00:00",
   "start": "2018-01-01",
   "first_date": "2018-01-03",
   "last_date": "2026-11-10",
   "n_sessions": 2226,
-  "n_tickers": 3368,
-  "n_eligible": 3040,
-  "n_young": 328,
+  "n_tickers": 3347,
+  "n_eligible": 3020,
+  "n_young": 327,
   "min_market_cap": 100000000.0,
   "rules": {
     "min_history_years": 3.0,
@@ -36,12 +36,37 @@
   "history_counts": {
     "too thinly traded": 375,
     "a single-day move beyond the limit": 59,
-    "price below the floor": 35
+    "price below the floor": 35,
+    "second share class of a company in the pack": 21
   },
   "download_failed": 6,
   "sources": {
     "symbol_directory": "https://www.nasdaqtrader.com/dynamic/SymDir/{name}",
     "screener": "https://api.nasdaq.com/api/screener/stocks",
     "prices": "Yahoo Finance via yfinance"
-  }
+  },
+  "share_classes": {
+    "BATRA": "BATRK",
+    "BELFA": "BELFB",
+    "BF-A": "BF-B",
+    "BH": "BH-A",
+    "BRK-A": "BRK-B",
+    "CENT": "CENTA",
+    "FOX": "FOXA",
+    "FWONA": "FWONK",
+    "GEF-B": "GEF",
+    "GLIBA": "GLIBK",
+    "GOOG": "GOOGL",
+    "HEI-A": "HEI",
+    "LBTYK": "LBTYA",
+    "LEN-B": "LEN",
+    "LILA": "LILAK",
+    "LLYVA": "LLYVK",
+    "NWS": "NWSA",
+    "RUSHB": "RUSHA",
+    "UA": "UAA",
+    "UHAL": "UHAL-B",
+    "ZG": "Z"
+  },
+  "share_class_candidates": []
 }
